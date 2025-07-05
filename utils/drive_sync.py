@@ -34,14 +34,28 @@ def get_credentials_file_from_secrets():
 def get_drive_service():
     """Authenticate and return the Google Drive service."""
     creds = None
+
+    # Load existing token if available
     if os.path.exists(TOKEN_PICKLE):
         with open(TOKEN_PICKLE, 'rb') as token:
             creds = pickle.load(token)
+
+    # If token not valid or missing, re-authenticate
     if not creds or not creds.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(get_credentials_file_from_secrets(), SCOPES)
-        creds = flow.run_local_server(port=0)
+        flow = InstalledAppFlow.from_client_secrets_file(
+            get_credentials_file_from_secrets(), SCOPES
+        )
+
+        # Use console auth on Streamlit Cloud (no browser)
+        if st.secrets.get("streamlit_cloud", False):
+            creds = flow.run_console()
+        else:
+            creds = flow.run_local_server(port=0)
+
         with open(TOKEN_PICKLE, 'wb') as token:
             pickle.dump(creds, token)
+
+    # Build and return service
     service = build('drive', 'v3', credentials=creds)
     return service
 
