@@ -4,48 +4,49 @@ import os
 import pickle
 import json
 import tempfile
+import io
+import streamlit as st
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-import streamlit as st
-import io
 
+# Google Drive API settings
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 TOKEN_PICKLE = 'token.pickle'
 FOLDER_NAME = 'AK-FINANCE-APP'
 
+def get_credentials_file_from_secrets():
+    """Create a temporary credentials file from Streamlit secrets."""
+    secret_data = {
+        "installed": {
+            "client_id": st.secrets["google"]["client_id"],
+            "client_secret": st.secrets["google"]["client_secret"],
+            "redirect_uris": st.secrets["google"]["redirect_uris"],
+            "auth_uri": st.secrets["google"]["auth_uri"],
+            "token_uri": st.secrets["google"]["token_uri"]
+        }
+    }
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+    with open(temp.name, "w") as f:
+        json.dump(secret_data, f)
+    return temp.name
+
 def get_drive_service():
+    """Authenticate and return the Google Drive service."""
     creds = None
     if os.path.exists(TOKEN_PICKLE):
         with open(TOKEN_PICKLE, 'rb') as token:
             creds = pickle.load(token)
-
     if not creds or not creds.valid:
-        # --- 🔐 Use Streamlit secrets to create a temporary client secret JSON ---
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as f:
-            json.dump({
-                "installed": {
-                    "client_id": st.secrets["google_oauth"]["client_id"],
-                    "project_id": st.secrets["google_oauth"]["project_id"],
-                    "auth_uri": st.secrets["google_oauth"]["auth_uri"],
-                    "token_uri": st.secrets["google_oauth"]["token_uri"],
-                    "auth_provider_x509_cert_url": st.secrets["google_oauth"]["auth_provider_x509_cert_url"],
-                    "client_secret": st.secrets["google_oauth"]["client_secret"],
-                    "redirect_uris": [st.secrets["google_oauth"]["redirect_uri"]]
-                }
-            }, f)
-            client_secrets_path = f.name
-
-        flow = InstalledAppFlow.from_client_secrets_file(client_secrets_path, SCOPES)
+        flow = InstalledAppFlow.from_client_secrets_file(get_credentials_file_from_secrets(), SCOPES)
         creds = flow.run_local_server(port=0)
-
         with open(TOKEN_PICKLE, 'wb') as token:
             pickle.dump(creds, token)
-
     service = build('drive', 'v3', credentials=creds)
     return service
 
 def get_or_create_folder(service):
+    """Get or create a Google Drive folder."""
     response = service.files().list(
         q=f"mimeType='application/vnd.google-apps.folder' and name='{FOLDER_NAME}'",
         spaces='drive'
@@ -61,6 +62,7 @@ def get_or_create_folder(service):
     return folder.get('id')
 
 def upload_to_drive(file_path):
+    """Upload a file to Google Drive."""
     service = get_drive_service()
     folder_id = get_or_create_folder(service)
     file_name = os.path.basename(file_path)
@@ -76,6 +78,7 @@ def upload_to_drive(file_path):
         service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 def download_from_drive(file_path):
+    """Download a file from Google Drive."""
     service = get_drive_service()
     folder_id = get_or_create_folder(service)
     file_name = os.path.basename(file_path)
