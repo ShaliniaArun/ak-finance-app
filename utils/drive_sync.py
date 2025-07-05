@@ -10,6 +10,7 @@ import streamlit as st
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+import webbrowser
 
 # Google Drive API settings
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
@@ -36,22 +37,21 @@ def get_drive_service():
     """Authenticate and return the Google Drive service."""
     creds = None
 
-    # Use existing credentials if available
     if os.path.exists(TOKEN_PICKLE):
         with open(TOKEN_PICKLE, 'rb') as token:
             creds = pickle.load(token)
 
-    # Authenticate if needed
     if not creds or not creds.valid:
         flow = InstalledAppFlow.from_client_secrets_file(
             get_credentials_file_from_secrets(), SCOPES
         )
 
-        # Use console login on Streamlit Cloud
-        if st.secrets.get("streamlit_cloud", False):
-            creds = flow.run_console()
-        else:
+        try:
+            # ✅ Try opening browser, fallback to console
+            webbrowser.get()
             creds = flow.run_local_server(port=0)
+        except webbrowser.Error:
+            creds = flow.run_console()
 
         with open(TOKEN_PICKLE, 'wb') as token:
             pickle.dump(creds, token)
