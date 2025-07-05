@@ -7,10 +7,10 @@ import json
 import tempfile
 import io
 import streamlit as st
-import webbrowser
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+import webbrowser
 
 # Google Drive API settings
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
@@ -18,6 +18,7 @@ TOKEN_PICKLE = 'token.pickle'
 FOLDER_NAME = 'AK-FINANCE-APP'
 
 def get_credentials_file_from_secrets():
+    """Create a temporary credentials file from Streamlit secrets."""
     secret_data = {
         "installed": {
             "client_id": st.secrets["google"]["client_id"],
@@ -33,6 +34,7 @@ def get_credentials_file_from_secrets():
     return temp.name
 
 def get_drive_service():
+    import sys
     creds = None
 
     if os.path.exists(TOKEN_PICKLE):
@@ -43,12 +45,14 @@ def get_drive_service():
         flow = InstalledAppFlow.from_client_secrets_file(
             get_credentials_file_from_secrets(), SCOPES
         )
+
+        # Try to use browser auth first
         try:
-            # Try using browser
+            import webbrowser
             webbrowser.get()
             creds = flow.run_local_server(port=0)
-        except webbrowser.Error:
-            # Fall back to console if no browser
+        except:
+            st.warning("Browser login not available. Using console mode.")
             creds = flow.run_console()
 
         with open(TOKEN_PICKLE, 'wb') as token:
@@ -56,7 +60,9 @@ def get_drive_service():
 
     return build('drive', 'v3', credentials=creds)
 
+
 def get_or_create_folder(service):
+    """Get or create the designated folder in Google Drive."""
     response = service.files().list(
         q=f"mimeType='application/vnd.google-apps.folder' and name='{FOLDER_NAME}'",
         spaces='drive'
@@ -73,6 +79,7 @@ def get_or_create_folder(service):
     return folder.get('id')
 
 def upload_to_drive(file_path):
+    """Upload a file to Google Drive into the designated folder."""
     service = get_drive_service()
     folder_id = get_or_create_folder(service)
     file_name = os.path.basename(file_path)
@@ -89,6 +96,7 @@ def upload_to_drive(file_path):
         service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 def download_from_drive(file_path):
+    """Download a file from Google Drive if it exists in the designated folder."""
     service = get_drive_service()
     folder_id = get_or_create_folder(service)
     file_name = os.path.basename(file_path)
