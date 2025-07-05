@@ -206,3 +206,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 client_secret_*.json
+
+# Ignore Streamlit secrets
+.streamlit/secrets.toml
+token.pickle
+client_secret_*.json
