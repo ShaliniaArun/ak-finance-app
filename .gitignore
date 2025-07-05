@@ -211,3 +211,4 @@ client_secret_*.json
 .streamlit/secrets.toml
 token.pickle
 client_secret_*.json
+.streamlit/secrets.toml
