@@ -1,3 +1,4 @@
+
 # utils/drive_sync.py
 
 import os
@@ -51,14 +52,11 @@ def get_drive_service():
             creds = flow.run_console()
         else:
             creds = flow.run_local_server(port=0)
-            flow = InstalledAppFlow.from_client_secrets_file(get_credentials_file_from_secrets(), SCOPES)
-
 
         with open(TOKEN_PICKLE, 'wb') as token:
             pickle.dump(creds, token)
 
-    service = build('drive', 'v3', credentials=creds)
-    return service
+    return build('drive', 'v3', credentials=creds)
 
 def get_or_create_folder(service):
     """Get or create the designated folder in Google Drive."""
