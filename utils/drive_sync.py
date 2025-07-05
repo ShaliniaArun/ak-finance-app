@@ -35,32 +35,33 @@ def get_drive_service():
     """Authenticate and return the Google Drive service."""
     creds = None
 
-    # Load existing token if available
+    # Use existing credentials if available
     if os.path.exists(TOKEN_PICKLE):
         with open(TOKEN_PICKLE, 'rb') as token:
             creds = pickle.load(token)
 
-    # If token not valid or missing, re-authenticate
+    # Authenticate if needed
     if not creds or not creds.valid:
         flow = InstalledAppFlow.from_client_secrets_file(
             get_credentials_file_from_secrets(), SCOPES
         )
 
-        # Use console auth on Streamlit Cloud (no browser)
+        # Use console login on Streamlit Cloud
         if st.secrets.get("streamlit_cloud", False):
             creds = flow.run_console()
         else:
             creds = flow.run_local_server(port=0)
+            flow = InstalledAppFlow.from_client_secrets_file(get_credentials_file_from_secrets(), SCOPES)
+
 
         with open(TOKEN_PICKLE, 'wb') as token:
             pickle.dump(creds, token)
 
-    # Build and return service
     service = build('drive', 'v3', credentials=creds)
     return service
 
 def get_or_create_folder(service):
-    """Get or create a Google Drive folder."""
+    """Get or create the designated folder in Google Drive."""
     response = service.files().list(
         q=f"mimeType='application/vnd.google-apps.folder' and name='{FOLDER_NAME}'",
         spaces='drive'
@@ -68,6 +69,7 @@ def get_or_create_folder(service):
     folders = response.get('files', [])
     if folders:
         return folders[0]['id']
+
     file_metadata = {
         'name': FOLDER_NAME,
         'mimeType': 'application/vnd.google-apps.folder'
@@ -76,7 +78,7 @@ def get_or_create_folder(service):
     return folder.get('id')
 
 def upload_to_drive(file_path):
-    """Upload a file to Google Drive."""
+    """Upload a file to Google Drive into the designated folder."""
     service = get_drive_service()
     folder_id = get_or_create_folder(service)
     file_name = os.path.basename(file_path)
@@ -84,6 +86,7 @@ def upload_to_drive(file_path):
     result = service.files().list(q=query, spaces='drive').execute()
     files = result.get('files', [])
     media = MediaFileUpload(file_path, resumable=True)
+
     if files:
         file_id = files[0]['id']
         service.files().update(fileId=file_id, media_body=media).execute()
@@ -92,15 +95,17 @@ def upload_to_drive(file_path):
         service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 def download_from_drive(file_path):
-    """Download a file from Google Drive."""
+    """Download a file from Google Drive if it exists in the designated folder."""
     service = get_drive_service()
     folder_id = get_or_create_folder(service)
     file_name = os.path.basename(file_path)
     query = f"name='{file_name}' and '{folder_id}' in parents"
     result = service.files().list(q=query, spaces='drive').execute()
     files = result.get('files', [])
+
     if not files:
         return
+
     file_id = files[0]['id']
     request = service.files().get_media(fileId=file_id)
     fh = io.FileIO(file_path, 'wb')
